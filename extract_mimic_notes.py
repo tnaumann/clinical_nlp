@@ -1,23 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-# Created on 10/18/2016.
+# Created on 8/9/2017
 
 @author: Dustin Doss (ddoss@mit.edu)
 
 Build pandas dataframe from MIMIC 1.4 notes of different types.
 """
 
-from gensim import corpora
-from gensim import utils
-import gensim.parsing.preprocessing as pre
 from time import time
 import logging
 import psycopg2
 import cPickle as pickle
-from six import iteritems
-import string
-import re
-from joblib import Parallel, delayed
 import os
 import pandas as pd
 
@@ -29,7 +22,7 @@ CATEGORIES =  ["'physician'", "'nursing'", "'nursing/other'",
                   "'nutrition'", "'pharmacy'", "'social work'",
                   "'case management'", "'general'", "'echo'", "'consult'"]
 
-def build_notes_corpora(time_period, genres=CATEGORIES):
+def build_notes_dataframe(time_period, genres=CATEGORIES):
     """
     Gets notes from the given set of genres
 
@@ -72,7 +65,7 @@ def build_notes_corpora(time_period, genres=CATEGORIES):
       and i.age >= 15
       and i.los_icu >= 0.5
     )
-    select n.row_id, n.category, n.hadm_id, n.text, COALESCE(n.charttime, n.chartdate), f.admittime)
+    select n.row_id, n.category, n.hadm_id, n.text, COALESCE(n.charttime, n.chartdate), f.admittime
     from noteevents n
     inner join first_icustays f on f.hadm_id = n.hadm_id
     where iserror IS NULL --this is null in mimic 1.4, rather than empty space
@@ -90,17 +83,15 @@ def build_notes_corpora(time_period, genres=CATEGORIES):
     hadm_ids = [record[2] for record in records]
     notes = [record[3] for record in records]
     times = [record[4]-record[5] for record in records]
-    print('Time type: '+str(type(times[0])))
     data = pd.DataFrame(data={'row_id': row_ids, 'hadm_id': hadm_ids, 'category': categories, 
                                   'time': times, 'note': notes})
     print 'Done fetching record ids. Number of records : ', len(row_ids)
 
     print 'Dumping data'
-    data_path = os.path.join(output_dir, 'mimic_notes_dataframe_' + suffix + '.p')
-    data.to_pickle(data_path)
     print 'Number of documents : ', len(row_ids)
     print 'Time : %3f' % (time() - t1)
     print 'Done building corpus for genres : ', genres
+    return data
 
 
 if __name__ == "__main__":
@@ -109,4 +100,6 @@ if __name__ == "__main__":
                   "'nutrition'", "'pharmacy'", "'social work'",
                   "'case management'", "'general'", "'echo'", "'consult'"]
     time_period = 'admit_to_disch' # options: admit_to_24h_disch, admit_to_disch
-    build_notes_corpora(time_period, categories)
+    data = build_notes_dataframe(time_period, categories)
+    data_path = os.path.join(output_dir, 'mimic_notes_dataframe_' + time_period + '.p')
+    data.to_pickle(data_path)
